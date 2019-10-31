@@ -28,6 +28,8 @@ call s:turbux_command_setting("cucumber", "cucumber")
 call s:turbux_command_setting("prefix", "")
 call s:turbux_command_setting("elixir_test", "mix test")
 call s:turbux_command_setting("elixir_spec", "mix espec")
+call s:turbux_command_setting("javascript_test", "mocha --exit")
+call s:turbux_command_setting("javascript_client_test", "grunt shell:karma")
 " }}}1
 
 " Utility {{{1
@@ -88,6 +90,10 @@ function! s:prefix_for_test(file)
     return g:turbux_command_elixir_test
   elseif a:file =~# '_spec\.exs$'
     return g:turbux_command_elixir_spec
+  elseif a:file =~# '^test\/client\/.*\.js$'
+    return g:turbux_command_javascript_client_test
+  elseif a:file =~# '\.js$'
+    return g:turbux_command_javascript_test
   endif
   return ''
 endfunction
@@ -110,6 +116,18 @@ function! s:command_for_file(file)
     call s:add(executable, g:turbux_command_prefix)
     call s:add(executable, s:prefix_for_test(test_file))
     call s:add(executable, s:shellescape(test_file))
+  endif
+
+  " executable: [prefix] command file
+  return join(executable, " ")
+endfunction
+
+function! s:command_task_for_file(file)
+  let executable = []
+  let test_file = s:test_file_for(a:file)
+  if !empty(test_file)
+    call s:add(executable, g:turbux_command_prefix)
+    call s:add(executable, s:prefix_for_test(test_file))
   endif
 
   " executable: [prefix] command file
@@ -251,7 +269,13 @@ endfunction
 
 " Public functions {{{1
 function! SendTestToTmux(file) abort
-  let executable = s:command_for_file(a:file)
+
+  if s:prefix_for_test(a:file) == g:turbux_command_javascript_client_test
+    let executable = s:command_task_for_file(a:file)
+  else
+    let executable = s:command_for_file(a:file)
+  endif
+
   if !empty(executable)
     let g:tmux_last_command = executable
   endif
@@ -281,7 +305,6 @@ function! SendFocusedTestToTmux(file, line) abort
       let focus = " --filter=\"".quoted_test_name."\""
     endif
   endif
-
 
   if !empty(s:prefix_for_test(a:file))
     let executable = s:command_for_file(a:file).focus
